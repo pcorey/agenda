@@ -258,7 +258,7 @@ describe('Agenda', () => {
           const res = await jobs.jobs({name: 'shouldBeSingleJob'});
           expect(res).to.have.length(1);
         });
-        it('uses `singleQuery` to differentiate jobs', async () => {
+        it('uses `singleQuery` to differentiate jobs', async() => {
           jobs.singleQuery(props => ({
             name: props.name,
             data: props.data
