@@ -1,18 +1,21 @@
 /* globals describe, it, beforeEach, afterEach */
 'use strict';
-const MongoClient = require('mongodb').MongoClient;
-const Agenda = require('../index');
+const delay = require('delay');
+const {MongoClient} = require('mongodb');
+const Agenda = require('..');
 
 const mongoHost = process.env.MONGODB_HOST || 'localhost';
 const mongoPort = process.env.MONGODB_PORT || '27017';
-const mongoCfg = 'mongodb://' + mongoHost + ':' + mongoPort + '/agenda-test';
+const agendaDatabase = 'agenda-test';
+const mongoCfg = 'mongodb://' + mongoHost + ':' + mongoPort + '/' + agendaDatabase;
 
 // Create agenda instances
 let agenda = null;
-let mongo = null;
+let mongoDb = null;
+let mongoClient = null;
 
-const clearJobs = done => {
-  mongo.collection('agendaJobs').remove({}, done);
+const clearJobs = () => {
+  return mongoDb.collection('agendaJobs').deleteMany({});
 };
 
 const jobType = 'do work';
@@ -28,30 +31,32 @@ describe('Retry', () => {
       if (err) {
         done(err);
       }
-      MongoClient.connect(mongoCfg, (error, db) => {
-        mongo = db;
-        setTimeout(() => {
-          clearJobs(() => {
-            agenda.define('someJob', jobProcessor);
-            agenda.define('send email', jobProcessor);
-            agenda.define('some job', jobProcessor);
-            agenda.define(jobType, jobProcessor);
-            done();
-          });
-        }, 50);
+      MongoClient.connect(mongoCfg, async(error, client) => {
+        mongoClient = client;
+        mongoDb = client.db(agendaDatabase);
+
+        await delay(50);
+        await clearJobs();
+
+        agenda.define('someJob', jobProcessor);
+        agenda.define('send email', jobProcessor);
+        agenda.define('some job', jobProcessor);
+        agenda.define(jobType, jobProcessor);
+
+        done();
       });
     });
   });
 
-  afterEach(async () => {
-    await new Promise(resolve => setTimeout(resolve, 50));
+  afterEach(async() => {
+    await delay(50);
     await agenda.stop();
     await clearJobs();
-    await mongo.close();
-    await agenda._mdb.close();
+    await mongoClient.close();
+    await agenda._db.close();
   });
 
-  it('should retry a job', async () => {
+  it('should retry a job', async() => {
     let shouldFail = true;
 
     agenda.processEvery(100); // Shave 5s off test runtime :grin:
